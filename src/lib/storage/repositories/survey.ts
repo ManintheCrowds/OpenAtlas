@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { and, desc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import {
   attendees,
   moderation,
