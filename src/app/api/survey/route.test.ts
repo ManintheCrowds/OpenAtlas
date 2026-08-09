@@ -85,4 +85,39 @@ describe('POST /api/survey', () => {
       expect.objectContaining({ harness_profile_id: harnessProfileId }),
     );
   });
+
+  it('returns 409 when createAttendee hits a duplicate email unique constraint', async () => {
+    const { default: Database } = await import('better-sqlite3');
+    const err = new Database.SqliteError(
+      'UNIQUE constraint failed: attendees.email',
+      'SQLITE_CONSTRAINT_UNIQUE'
+    );
+    repositoryMocks.createAttendee.mockImplementation(() => {
+      throw err;
+    });
+
+    const response = await POST(
+      new Request('http://localhost/api/survey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Mallory',
+          lastName: 'Overwrite',
+          email: 'ada@example.com',
+          isAnonymous: false,
+          sessionType: 'profile',
+          questionnaireVersion: 'v1',
+          answers: [{ questionId: 'unique_quality', answer: 'Analytical' }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      message:
+        'An account with this email already exists. Use a different email or submit anonymously.',
+    });
+    expect(repositoryMocks.createSurveyResponse).not.toHaveBeenCalled();
+  });
 });

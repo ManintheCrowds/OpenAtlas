@@ -32,6 +32,49 @@ async function loadSurveyModules(dbPath: string) {
   return { getSqlite, createAttendee, createSurveyResponse };
 }
 
+describe('createAttendee', () => {
+  it('rejects a second non-anonymous attendee with the same email without overwriting the first', async () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opengrimoire-attendee-email-'));
+    const dbPath = path.join(tempDir, 'opengrimoire.sqlite');
+    const { getSqlite, createAttendee } = await loadSurveyModules(dbPath);
+    const sqlite = getSqlite();
+
+    const first = createAttendee({
+      first_name: 'Alice',
+      last_name: 'Original',
+      email: 'shared@example.com',
+      is_anonymous: false,
+    });
+
+    expect(() =>
+      createAttendee({
+        first_name: 'Mallory',
+        last_name: 'Overwrite',
+        email: 'shared@example.com',
+        is_anonymous: false,
+      })
+    ).toThrow(/UNIQUE constraint failed: attendees\.email/);
+
+    const row = sqlite
+      .prepare(`SELECT id, first_name, last_name, email FROM attendees WHERE email = ?`)
+      .get('shared@example.com') as {
+      id: string;
+      first_name: string;
+      last_name: string | null;
+      email: string;
+    };
+
+    expect(row.id).toBe(first.id);
+    expect(row.first_name).toBe('Alice');
+    expect(row.last_name).toBe('Original');
+    expect(
+      (sqlite.prepare(`SELECT COUNT(*) AS n FROM attendees`).get() as { n: number }).n
+    ).toBe(1);
+
+    sqlite.close();
+  });
+});
+
 describe('createSurveyResponse', () => {
   it('rolls back the parent response when a category insert fails mid-write', async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opengrimoire-survey-'));
