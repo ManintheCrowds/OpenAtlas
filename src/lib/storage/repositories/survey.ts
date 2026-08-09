@@ -77,28 +77,10 @@ export function createAttendee(data: {
   const db = getDb();
   const ts = nowIso();
 
-  if (data.email && !data.is_anonymous) {
-    const existing = db
-      .select()
-      .from(attendees)
-      .where(eq(attendees.email, data.email))
-      .get();
-    if (existing) {
-      db.update(attendees)
-        .set({
-          firstName: data.first_name,
-          lastName: data.last_name ?? null,
-          isAnonymous: data.is_anonymous ?? false,
-          updatedAt: ts,
-        })
-        .where(eq(attendees.id, existing.id))
-        .run();
-      const updated = db.select().from(attendees).where(eq(attendees.id, existing.id)).get();
-      if (!updated) throw new Error('Attendee update failed');
-      return rowToAttendee(updated);
-    }
-  }
-
+  // Do not upsert on email. Duplicate non-anonymous emails must hit the UNIQUE
+  // constraint so POST /api/survey can return 409. Silent name overwrite would
+  // corrupt attendee PII and attribute later Sync Session responses to the
+  // original attendee id (see docs/agent/SYNC_SESSION_HANDOFF.md §7.2).
   const id = randomUUID();
   db.insert(attendees)
     .values({
