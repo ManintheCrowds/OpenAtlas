@@ -52,18 +52,18 @@ const findConnections = (
   return allResponses
     .filter((other) => {
       if (other.id === response.id) return false;
+      // Sync Session v2 leaves peak_performance/motivation null — do not treat null===null as a link.
+      if (response[mode] == null || other[mode] == null) return false;
       return other[mode] === response[mode];
     })
     .map((other) => other.id);
 };
 
 function isValidNode(
-  response: any
-): response is Omit<NodeData, 'position' | 'connections' | 'opacity' | 'scale'> & {
-  tenure_years: number;
-  attendee: any;
-} {
-  return typeof response.tenure_years === 'number' && response.attendee;
+  response: VisualizationSurveyRow
+): response is VisualizationSurveyRow & { attendee: NonNullable<VisualizationSurveyRow['attendee']> } {
+  // Tenure is optional for Sync Session v2; constellation still needs an attendee to render.
+  return Boolean(response.attendee);
 }
 
 export const processVisualizationData = (
@@ -105,13 +105,11 @@ export const processVisualizationData = (
 
   const validResponses = filteredData.filter(isValidNode);
   const nodes: NodeData[] = validResponses.map((response, index) => {
-    const tenure_years = response.tenure_years as number;
+    // NodeData.tenure_years is numeric for layout/color; null v2 tenure buckets as 0-5
+    // (same fallback chord/alluvial already use via `tenure_years || 0`).
+    const tenure_years = typeof response.tenure_years === 'number' ? response.tenure_years : 0;
     const yearsCategory = getYearsCategory(tenure_years);
-    const connections = findConnections(
-      filteredData.find((r) => r.id === response.id)!,
-      filteredData,
-      options.mode
-    );
+    const connections = findConnections(response, filteredData, options.mode);
     return {
       id: response.id,
       position: calculateNodePosition(index, validResponses.length),
@@ -128,7 +126,7 @@ export const processVisualizationData = (
       scale: 1,
     };
   });
-  console.log('Filtered out nodes without attendee or tenure_years:', filteredData.length - nodes.length);
+  console.log('Filtered out nodes without attendee:', filteredData.length - nodes.length);
 
   const edges: EdgeData[] = [];
   const edgeMap = new Set<string>();
