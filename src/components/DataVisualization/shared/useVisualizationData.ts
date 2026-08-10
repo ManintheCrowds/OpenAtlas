@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import type { VisualizationSurveyRow } from '@/lib/types/database';
 import { OPENGRIMOIRE_SURVEY_DATA_CHANGED } from '@/lib/survey/survey-data-change-event';
 import { fetchSurveyVisualizationRows } from '@/lib/visualization/surveyVisualizationFetch';
+import { isSurveyVisualizationRow } from '@/lib/visualization/validateSurveyVisualizationRow';
 
 type SurveyRow = VisualizationSurveyRow & {
   attendee: VisualizationSurveyRow['attendee'];
@@ -123,18 +124,6 @@ export function useVisualizationData() {
     }
   }, [data.length, isLoading, error, isMockData]);
 
-  const validateResponse = (response: unknown): response is SurveyRow => {
-    if (!response || typeof response !== 'object') return false;
-    const r = response as Record<string, unknown>;
-    if (typeof r.tenure_years !== 'number' || (r.tenure_years as number) < 0) return false;
-    if (!r.learning_style || typeof r.learning_style !== 'string') return false;
-    if (!r.shaped_by || typeof r.shaped_by !== 'string') return false;
-    if (!r.peak_performance || typeof r.peak_performance !== 'string') return false;
-    if (!r.motivation || typeof r.motivation !== 'string') return false;
-    if (!r.attendee || typeof r.attendee !== 'object') return false;
-    return true;
-  };
-
   useEffect(() => {
     let mounted = true;
     let retryCount = 0;
@@ -153,12 +142,12 @@ export function useVisualizationData() {
 
         if (mounted) {
           if (responses.length > 0) {
-            const validResponses = responses.filter(validateResponse).reduce((acc: SurveyRow[], curr) => {
+            const validResponses = responses.filter(isSurveyVisualizationRow).reduce((acc: SurveyRow[], curr) => {
               const existingIndex = acc.findIndex((r) => r.attendee_id === curr.attendee_id);
               if (existingIndex === -1) {
-                acc.push(curr as SurveyRow);
+                acc.push(curr);
               } else if (new Date(curr.updated_at) > new Date(acc[existingIndex].updated_at)) {
-                acc[existingIndex] = curr as SurveyRow;
+                acc[existingIndex] = curr;
               }
               return acc;
             }, []);
