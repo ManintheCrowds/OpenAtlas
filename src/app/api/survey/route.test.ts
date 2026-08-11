@@ -85,4 +85,32 @@ describe('POST /api/survey', () => {
       expect.objectContaining({ harness_profile_id: harnessProfileId }),
     );
   });
+
+  it('rejects submits without Turnstile token when captcha is required', async () => {
+    vi.stubEnv('SURVEY_POST_CAPTCHA_REQUIRED', 'true');
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'test-turnstile-secret');
+
+    const response = await POST(
+      new Request('http://localhost/api/survey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          email: 'ada@example.com',
+          isAnonymous: false,
+          sessionType: 'profile',
+          questionnaireVersion: 'v1',
+          answers: [{ questionId: 'unique_quality', answer: 'Analytical' }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Validation failed',
+      message: 'Invalid or missing Turnstile token',
+    });
+    expect(repositoryMocks.createAttendee).not.toHaveBeenCalled();
+  });
 });

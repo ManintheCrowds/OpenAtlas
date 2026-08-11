@@ -19,6 +19,14 @@ describe('syncSessionSubmitUserMessage', () => {
     expect(syncSessionSubmitUserMessage(400, payload)).toBe('Please check your answers and try again.');
   });
 
+  it('surfaces Turnstile failures instead of generic validation copy', () => {
+    const payload: SurveySubmitErrorPayload = {
+      error: 'Validation failed',
+      message: 'Invalid or missing Turnstile token',
+    };
+    expect(syncSessionSubmitUserMessage(400, payload)).toMatch(/captcha/i);
+  });
+
   it('formats 429 with detail and Retry-After', () => {
     const payload: SurveySubmitErrorPayload = {
       error: 'Too many requests',

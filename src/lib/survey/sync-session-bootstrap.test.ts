@@ -7,6 +7,7 @@ describe('parseBootstrapTokenResponse', () => {
       status: 'ok',
       token: null,
       required: false,
+      captchaRequired: false,
     });
   });
 
@@ -15,6 +16,7 @@ describe('parseBootstrapTokenResponse', () => {
       status: 'ok',
       token: null,
       required: false,
+      captchaRequired: false,
     });
   });
 
@@ -24,6 +26,18 @@ describe('parseBootstrapTokenResponse', () => {
       status: 'ok',
       token: 'abc',
       required: true,
+      captchaRequired: false,
+    });
+  });
+
+  it('surfaces captchaRequired for Sync Session Turnstile gating', () => {
+    expect(
+      parseBootstrapTokenResponse({ token: null, required: false, captchaRequired: true })
+    ).toEqual({
+      status: 'ok',
+      token: null,
+      required: false,
+      captchaRequired: true,
     });
   });
 });

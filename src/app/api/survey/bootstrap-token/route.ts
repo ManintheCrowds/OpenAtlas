@@ -3,6 +3,7 @@ import {
   isSurveyPostTokenRequired,
   signSurveyPostBootstrapToken,
 } from '@/lib/survey/survey-post-bootstrap';
+import { isSurveyPostCaptchaRequired } from '@/lib/survey/survey-post-captcha';
 
 /**
  * Issues a short-lived JWT for POST /api/survey when SURVEY_POST_REQUIRE_TOKEN is enabled.
@@ -13,8 +14,9 @@ import {
  * [docs/security/SURVEY_POST_BOOTSTRAP_THREAT_MODEL.md](../../../../../docs/security/SURVEY_POST_BOOTSTRAP_THREAT_MODEL.md).
  */
 export async function GET() {
+  const captchaRequired = isSurveyPostCaptchaRequired();
   if (!isSurveyPostTokenRequired()) {
-    return NextResponse.json({ token: null, expiresIn: null, required: false });
+    return NextResponse.json({ token: null, expiresIn: null, required: false, captchaRequired });
   }
   if (!process.env.SURVEY_POST_BOOTSTRAP_SECRET?.trim()) {
     return NextResponse.json(
@@ -24,7 +26,7 @@ export async function GET() {
   }
   try {
     const token = await signSurveyPostBootstrapToken();
-    return NextResponse.json({ token, expiresIn: 900, required: true });
+    return NextResponse.json({ token, expiresIn: 900, required: true, captchaRequired });
   } catch (e) {
     console.error('[survey/bootstrap-token]', e);
     return NextResponse.json({ error: 'Could not issue token' }, { status: 500 });

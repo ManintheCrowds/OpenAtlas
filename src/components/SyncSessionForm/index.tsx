@@ -37,6 +37,9 @@ export function SyncSessionForm() {
     fetchBootstrapToken,
     bootstrapTokenStatus,
     bootstrapRequired,
+    captchaRequired,
+    turnstileSiteKey,
+    onTurnstileTokenChange,
     successIds,
     recentRetries,
   } = useSyncSessionForm();
@@ -154,6 +157,19 @@ export function SyncSessionForm() {
 
           {isSuccessStep ? (
             <SuccessStep formData={formData} successIds={successIds} />
+          ) : currentStep === formSteps.length - 1 ? (
+            <UniqueQualityStep
+              formData={formData}
+              updateFormData={updateFormData}
+              nextStep={nextStep}
+              prevStep={prevStep}
+              submitForm={submitForm}
+              isSubmitting={isSubmitting}
+              isLastStep
+              captchaRequired={captchaRequired}
+              turnstileSiteKey={turnstileSiteKey}
+              onTurnstileTokenChange={onTurnstileTokenChange}
+            />
           ) : CurrentStepComponent ? (
             <CurrentStepComponent
               formData={formData}
@@ -162,7 +178,7 @@ export function SyncSessionForm() {
               prevStep={prevStep}
               submitForm={submitForm}
               isSubmitting={isSubmitting}
-              isLastStep={currentStep === formSteps.length - 1}
+              isLastStep={false}
             />
           ) : null}
         </div>

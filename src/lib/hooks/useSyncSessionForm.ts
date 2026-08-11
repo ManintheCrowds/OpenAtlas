@@ -8,12 +8,13 @@ import {
   type SyncSessionErrorKind,
   type SurveySubmitErrorPayload,
 } from '@/lib/survey/sync-session-submit-user-message';
-import { SYNC_SESSION_QUESTIONNAIRE_VERSION } from '@/lib/survey/sync-session-v2-questions';
 import { parseBootstrapTokenResponse } from '@/lib/survey/sync-session-bootstrap';
+import { buildSyncSessionPostBody } from '@/lib/survey/sync-session-post-body';
 import {
   parseSyncSessionSuccessIds,
   type SyncSessionSuccessIds,
 } from '@/lib/survey/sync-session-success-ids';
+import { getPublicTurnstileSiteKey } from '@/lib/survey/turnstile-site-key';
 import type { SyncSessionFormData } from './types';
 
 export type { SyncSessionFormData } from './types';
@@ -41,29 +42,6 @@ function loadDraft(): { currentStep: number; formData: Partial<SyncSessionFormDa
   }
 }
 
-/** Body shape for `POST /api/survey`. */
-function buildSyncSessionPostBody(formData: SyncSessionFormData) {
-  const lastName = formData.last_name?.trim() || '—';
-  const answers = [
-    { questionId: 'session_intent', answer: formData.session_intent ?? '' },
-    { questionId: 'session_context', answer: formData.session_context ?? '' },
-    { questionId: 'shaped_by', answer: formData.shaped_by ?? '' },
-    { questionId: 'working_style', answer: formData.working_style ?? '' },
-    { questionId: 'constraints', answer: formData.constraints ?? '' },
-    { questionId: 'unique_quality', answer: formData.unique_quality ?? '' },
-  ];
-  return {
-    firstName: formData.first_name,
-    lastName,
-    email: formData.is_anonymous ? '' : formData.email ?? '',
-    isAnonymous: formData.is_anonymous,
-    sessionType: 'profile',
-    questionnaireVersion: SYNC_SESSION_QUESTIONNAIRE_VERSION,
-    answers,
-    harnessProfileId: formData.harness_profile_id,
-  };
-}
-
 export function useSyncSessionForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,11 +54,16 @@ export function useSyncSessionForm() {
   const [hydrated, setHydrated] = useState(false);
   const [bootstrapTokenStatus, setBootstrapTokenStatus] = useState<'idle' | 'ok' | 'failed'>('idle');
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [successIds, setSuccessIds] = useState<SyncSessionSuccessIds | null>(null);
   const [recentRetries, setRecentRetries] = useState<Array<{ ts: string; status: number | null; requestId?: string }>>([]);
   const postTokenRef = useRef<string | null>(null);
   const bootstrapAttemptedRef = useRef(false);
   const bootstrapRequiredRef = useRef(false);
+  const captchaRequiredRef = useRef(false);
+  const turnstileTokenRef = useRef<string | null>(null);
+  const turnstileSiteKey = getPublicTurnstileSiteKey();
 
   const fetchBootstrapToken = async () => {
     bootstrapAttemptedRef.current = true;
@@ -94,11 +77,14 @@ export function useSyncSessionForm() {
         token?: string | null;
         required?: boolean;
         expiresIn?: number | null;
+        captchaRequired?: boolean;
       };
       const parsed = parseBootstrapTokenResponse(data);
       if (parsed.status === 'ok') {
         bootstrapRequiredRef.current = parsed.required;
         setBootstrapRequired(parsed.required);
+        captchaRequiredRef.current = parsed.captchaRequired;
+        setCaptchaRequired(parsed.captchaRequired);
         postTokenRef.current = parsed.token;
         setBootstrapTokenStatus('ok');
       } else {
@@ -106,6 +92,8 @@ export function useSyncSessionForm() {
           data.required === true || (data.required !== false && data.expiresIn != null);
         bootstrapRequiredRef.current = required;
         setBootstrapRequired(required);
+        captchaRequiredRef.current = data.captchaRequired === true;
+        setCaptchaRequired(data.captchaRequired === true);
         setBootstrapTokenStatus('failed');
       }
     } catch {
@@ -168,6 +156,11 @@ export function useSyncSessionForm() {
     setCurrentStep((prev) => prev - 1);
   };
 
+  const onTurnstileTokenChange = (token: string | null) => {
+    turnstileTokenRef.current = token;
+    setTurnstileToken(token);
+  };
+
   const submitForm = async () => {
     try {
       setIsSubmitting(true);
@@ -184,6 +177,20 @@ export function useSyncSessionForm() {
         setError('Submission token setup failed before submit. Request a new token and retry.');
         return;
       }
+      if (captchaRequiredRef.current) {
+        if (!turnstileSiteKey) {
+          setErrorKind('validation');
+          setError(
+            'Captcha is required on this server, but NEXT_PUBLIC_TURNSTILE_SITE_KEY is not configured. Ask an operator to set the Turnstile site key.'
+          );
+          return;
+        }
+        if (!turnstileTokenRef.current?.trim()) {
+          setErrorKind('validation');
+          setError('Complete the captcha challenge before submitting.');
+          return;
+        }
+      }
       if (postTokenRef.current) {
         headers['x-survey-post-token'] = postTokenRef.current;
       }
@@ -191,7 +198,9 @@ export function useSyncSessionForm() {
       const res = await fetch('/api/survey', {
         method: 'POST',
         headers,
-        body: JSON.stringify(buildSyncSessionPostBody(formData)),
+        body: JSON.stringify(
+          buildSyncSessionPostBody(formData, { turnstileToken: turnstileTokenRef.current })
+        ),
       });
 
       let payload: SurveySubmitErrorPayload = {};
@@ -262,6 +271,10 @@ export function useSyncSessionForm() {
     fetchBootstrapToken,
     bootstrapTokenStatus,
     bootstrapRequired,
+    captchaRequired,
+    turnstileSiteKey,
+    turnstileToken,
+    onTurnstileTokenChange,
     successIds,
     recentRetries,
   };
