@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { SyncSessionFormData } from '@/lib/hooks/useSyncSessionForm';
+import { TurnstileField } from '../TurnstileField';
 
 interface UniqueQualityStepProps {
   formData: SyncSessionFormData;
@@ -11,6 +12,9 @@ interface UniqueQualityStepProps {
   submitForm: () => void;
   isSubmitting: boolean;
   isLastStep: boolean;
+  captchaRequired?: boolean;
+  turnstileSiteKey?: string | null;
+  onTurnstileTokenChange?: (token: string | null) => void;
 }
 
 export function UniqueQualityStep({
@@ -21,8 +25,12 @@ export function UniqueQualityStep({
   submitForm,
   isSubmitting,
   isLastStep,
+  captchaRequired = false,
+  turnstileSiteKey = null,
+  onTurnstileTokenChange,
 }: UniqueQualityStepProps) {
   const [error, setError] = React.useState<string | null>(null);
+  const showTurnstile = Boolean(isLastStep && (captchaRequired || turnstileSiteKey) && turnstileSiteKey);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +72,14 @@ export function UniqueQualityStep({
           This response will be reviewed before being included in the visualization.
           Your identity can remain anonymous if you chose that option earlier.
         </p>
+        {showTurnstile && turnstileSiteKey && onTurnstileTokenChange ? (
+          <TurnstileField siteKey={turnstileSiteKey} onTokenChange={onTurnstileTokenChange} />
+        ) : null}
+        {isLastStep && captchaRequired && !turnstileSiteKey ? (
+          <p className="mt-4 text-sm text-red-600" role="alert" data-testid="sync-session-turnstile-missing-site-key">
+            Captcha is required, but the Turnstile site key is not configured on this deployment.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex justify-between">

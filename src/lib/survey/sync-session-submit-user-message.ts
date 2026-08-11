@@ -48,6 +48,10 @@ export function syncSessionSubmitUserMessage(
   }
 
   if (status === 400 && payload.error === 'Validation failed') {
+    const message = payload.message?.trim() ?? '';
+    if (/turnstile/i.test(message)) {
+      return 'Captcha verification failed or expired. Complete the captcha and try again.';
+    }
     return 'Please check your answers and try again.';
   }
 
