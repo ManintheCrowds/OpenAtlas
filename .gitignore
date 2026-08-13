@@ -25,8 +25,9 @@ public/brain-map-graph.local.json.*
 public/wiki/**
 !public/wiki/.gitkeep
 
-# Local SQLite (alignment + survey)
-/data/
+# Local SQLite (alignment + survey + decision graph); keep README tracked
+/data/**
+!/data/README.md
 
 # Private consulting / strategy research (not shipped in public clone; see docs/research/PRIVATE_RESEARCH_LAYOUT.md)
 /docs/private/
