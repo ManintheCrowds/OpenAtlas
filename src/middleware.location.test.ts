@@ -14,10 +14,10 @@ describe('middleware location', () => {
     expect(fs.existsSync(path.join(root, 'middleware.ts'))).toBe(false);
   });
 
-  it('uses suffix-covering brain-map matcher patterns (not a fixed backup allowlist)', () => {
+  it('uses a catch-all matcher so percent-encoded static graph URLs still enter middleware', () => {
     const src = fs.readFileSync(path.join(process.cwd(), 'src/middleware.ts'), 'utf8');
-    expect(src).toContain("'/brain-map-graph.json(.*)'");
-    expect(src).toContain("'/brain-map-graph.local.json(.*)'");
+    expect(src).toContain("'/((?!_next/static|_next/image|favicon.ico).*)'");
+    expect(src).not.toContain("'/brain-map-graph.json(.*)'");
     expect(src).not.toContain("'/brain-map-graph.local.json.pre_e2e_backup'");
   });
 });

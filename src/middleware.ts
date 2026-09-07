@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isBlockedBrainMapStaticPath } from './lib/brain-map/static-path-guard';
+import { normalizeRequestPathname } from './lib/http/normalize-request-pathname';
 import { getRateLimitClientIp } from './lib/rate-limit/get-client-ip';
 import { createRateLimiter } from './lib/rate-limit-in-memory';
 
@@ -33,10 +34,8 @@ const DISCOVERY_GET_PATHS = new Set(['/api/capabilities', '/api/openapi', '/api/
  * Dev/demo App Router pages only (OA-4). Blocked in production unless explicitly allowed
  * (e.g. staging). See .env.example OPENGRIMOIRE_ALLOW_TEST_ROUTES.
  *
- * Maintainer: keep in sync with `export const config.matcher` at the bottom of this file —
- * every prefix here must have matching matcher entries (Next.js path patterns). `isTestDevRoute`
- * treats `pathname === prefix` or `pathname.startsWith(prefix + '/')`. When adding a prefix,
- * update matcher + `e2e/test-routes.spec.ts` smoke for that route.
+ * Matcher is a catch-all (minus Next internals) so percent-encoded paths still
+ * enter this function. When adding a prefix, update `e2e/test-routes.spec.ts`.
  */
 const TEST_ROUTE_PREFIXES = ['/test', '/test-chord', '/test-context', '/test-sqlite'] as const;
 
@@ -53,7 +52,7 @@ function testRoutesAllowedInThisDeployment(): boolean {
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const pathname = normalizeRequestPathname(request.nextUrl.pathname);
 
   if (isTestDevRoute(pathname) && !testRoutesAllowedInThisDeployment()) {
     return new NextResponse(
@@ -122,26 +121,12 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-/** Must cover every `TEST_ROUTE_PREFIXES` entry (OA-4). Drift = middleware never runs for a dev route. */
+/**
+ * Catch-all minus Next internals. Narrow patterns such as
+ * `/brain-map-graph.json(.*)` never run for percent-encoded URLs
+ * (`/%62rain-map-graph.json`), and Next.js then serves `public/` statically —
+ * skipping BRAIN_MAP_SECRET / session on GET /api/brain-map/graph.
+ */
 export const config = {
-  matcher: [
-    // Same coverage as isBlockedBrainMapStaticPath — any suffix after .json
-    // (enumeration here would miss backups that .gitignore + the guard already cover).
-    '/brain-map-graph.local.json(.*)',
-    '/brain-map-graph.json(.*)',
-    '/api/survey',
-    '/api/auth/login',
-    '/api/operator-probes/ingest',
-    '/api/capabilities',
-    '/api/openapi',
-    '/api/openapi.json',
-    '/test',
-    '/test/:path*',
-    '/test-chord',
-    '/test-chord/:path*',
-    '/test-context',
-    '/test-context/:path*',
-    '/test-sqlite',
-    '/test-sqlite/:path*',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
