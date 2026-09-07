@@ -14,6 +14,13 @@ describe('isBlockedBrainMapStaticPath', () => {
     expect(isBlockedBrainMapStaticPath('/brain-map-graph.json.old')).toBe(true);
   });
 
+  it('blocks percent-encoded paths that Next.js static serving would decode', () => {
+    expect(isBlockedBrainMapStaticPath('/%62rain-map-graph.json')).toBe(true);
+    expect(isBlockedBrainMapStaticPath('/brain-map-graph%2Ejson')).toBe(true);
+    expect(isBlockedBrainMapStaticPath('/%2Fbrain-map-graph.json')).toBe(true);
+    expect(isBlockedBrainMapStaticPath('/%62rain-map-graph.local.json')).toBe(true);
+  });
+
   it('does not block the authenticated API route or unrelated paths', () => {
     expect(isBlockedBrainMapStaticPath('/api/brain-map/graph')).toBe(false);
     expect(isBlockedBrainMapStaticPath('/api/brain-map/meta')).toBe(false);
