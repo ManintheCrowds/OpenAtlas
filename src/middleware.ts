@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isBlockedBrainMapStaticPath } from './lib/brain-map/static-path-guard';
+import { normalizeRequestPathname } from './lib/http/normalize-request-pathname';
 import { getRateLimitClientIp } from './lib/rate-limit/get-client-ip';
 import { createRateLimiter } from './lib/rate-limit-in-memory';
 
@@ -29,14 +30,19 @@ const rateLimitDiscoveryGet = createRateLimiter(60_000, 200);
 
 const DISCOVERY_GET_PATHS = new Set(['/api/capabilities', '/api/openapi', '/api/openapi.json']);
 
+const BRAIN_MAP_STATIC_404 = {
+  error: 'Not found',
+  detail:
+    'Brain map JSON is served only via GET /api/brain-map/graph (see docs/AGENT_INTEGRATION.md).',
+} as const;
+
 /**
  * Dev/demo App Router pages only (OA-4). Blocked in production unless explicitly allowed
  * (e.g. staging). See .env.example OPENGRIMOIRE_ALLOW_TEST_ROUTES.
  *
- * Maintainer: keep in sync with `export const config.matcher` at the bottom of this file —
- * every prefix here must have matching matcher entries (Next.js path patterns). `isTestDevRoute`
- * treats `pathname === prefix` or `pathname.startsWith(prefix + '/')`. When adding a prefix,
- * update matcher + `e2e/test-routes.spec.ts` smoke for that route.
+ * Prefix list is handler-only SSOT. Catch-all matcher (minus Next static/image/favicon)
+ * runs this function for encoded `/test*` as well. `isTestDevRoute` treats
+ * `pathname === prefix` or `pathname.startsWith(prefix + '/')`.
  */
 const TEST_ROUTE_PREFIXES = ['/test', '/test-chord', '/test-context', '/test-sqlite'] as const;
 
@@ -52,8 +58,16 @@ function testRoutesAllowedInThisDeployment(): boolean {
   return v === '1' || v === 'true';
 }
 
+function genericNotFound(): NextResponse {
+  return new NextResponse(null, { status: 404 });
+}
+
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const normalized = normalizeRequestPathname(request.nextUrl.pathname);
+  if (!normalized.ok) {
+    return genericNotFound();
+  }
+  const { pathname } = normalized;
 
   if (isTestDevRoute(pathname) && !testRoutesAllowedInThisDeployment()) {
     return new NextResponse(
@@ -63,14 +77,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (isBlockedBrainMapStaticPath(pathname)) {
-    return NextResponse.json(
-      {
-        error: 'Not found',
-        detail:
-          'Brain map JSON is served only via GET /api/brain-map/graph (see docs/AGENT_INTEGRATION.md).',
-      },
-      { status: 404 }
-    );
+    return NextResponse.json(BRAIN_MAP_STATIC_404, { status: 404 });
   }
 
   if (pathname === '/api/survey' && request.method === 'POST') {
@@ -122,26 +129,7 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-/** Must cover every `TEST_ROUTE_PREFIXES` entry (OA-4). Drift = middleware never runs for a dev route. */
+/** Catch-all so encoded public/ paths still enter this function. Next internals stay excluded. */
 export const config = {
-  matcher: [
-    // Same coverage as isBlockedBrainMapStaticPath — any suffix after .json
-    // (enumeration here would miss backups that .gitignore + the guard already cover).
-    '/brain-map-graph.local.json(.*)',
-    '/brain-map-graph.json(.*)',
-    '/api/survey',
-    '/api/auth/login',
-    '/api/operator-probes/ingest',
-    '/api/capabilities',
-    '/api/openapi',
-    '/api/openapi.json',
-    '/test',
-    '/test/:path*',
-    '/test-chord',
-    '/test-chord/:path*',
-    '/test-context',
-    '/test-context/:path*',
-    '/test-sqlite',
-    '/test-sqlite/:path*',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

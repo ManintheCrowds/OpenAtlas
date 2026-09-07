@@ -4,8 +4,9 @@ import { test, expect } from '@playwright/test';
  * OA-4: /test* dev routes — available under `next dev`; gated in production
  * (middleware + OPENGRIMOIRE_ALLOW_TEST_ROUTES). E2E runs against dev server.
  *
- * Keep route list aligned with `TEST_ROUTE_PREFIXES` + `config.matcher` in `src/middleware.ts`
+ * Keep route list aligned with `TEST_ROUTE_PREFIXES` in `src/middleware.ts`
  * (same basename set: /test, /test-chord, /test-context, /test-sqlite).
+ * Matcher is catch-all; prefixes are handler-only.
  */
 test.describe('Dev test routes (OA-4)', () => {
   test('/test loads in development (Playwright webServer)', async ({ page }) => {

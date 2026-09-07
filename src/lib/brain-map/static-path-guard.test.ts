@@ -14,6 +14,21 @@ describe('isBlockedBrainMapStaticPath', () => {
     expect(isBlockedBrainMapStaticPath('/brain-map-graph.json.old')).toBe(true);
   });
 
+  it('blocks AE1-class encodings of the canonical basename', () => {
+    expect(isBlockedBrainMapStaticPath('/%62rain-map-graph.json')).toBe(true);
+    expect(isBlockedBrainMapStaticPath('/brain-map-graph%2Ejson')).toBe(true);
+    expect(isBlockedBrainMapStaticPath('/%2Fbrain-map-graph.json')).toBe(true);
+  });
+
+  it('blocks encoded .local.json and encoded backup suffixes', () => {
+    expect(isBlockedBrainMapStaticPath('/brain-map-graph.local%2Ejson')).toBe(true);
+    expect(isBlockedBrainMapStaticPath('/brain-map-graph.json%2Ebak')).toBe(true);
+  });
+
+  it('does not treat fail-closed encodings as suffix hits', () => {
+    expect(isBlockedBrainMapStaticPath('/brain-map-graph%.json')).toBe(false);
+  });
+
   it('does not block the authenticated API route or unrelated paths', () => {
     expect(isBlockedBrainMapStaticPath('/api/brain-map/graph')).toBe(false);
     expect(isBlockedBrainMapStaticPath('/api/brain-map/meta')).toBe(false);
